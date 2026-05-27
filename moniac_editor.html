@@ -1,0 +1,1576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>MONIAC Editor</title>
+
+<style>
+
+html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    font-family:Arial;
+    background:#cfcfcf;
+}
+
+#toolbar{
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    height:70px;
+    background:#222;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px;
+    z-index:1000;
+}
+
+button{
+    padding:10px 16px;
+    border:none;
+    border-radius:8px;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+#status{
+    color:white;
+    margin-left:20px;
+    font-weight:bold;
+}
+
+#canvasContainer{
+    position:absolute;
+    top:70px;
+    left:0;
+    right:0;
+    bottom:0;
+    overflow:auto;
+    background:#bbb;
+}
+
+#canvasInner{
+    width:16000px;
+    height:12000px;
+    transform-origin:0 0;
+}
+
+svg{
+    width:16000px;
+    height:12000px;
+    background:#efefef;
+    display:block;
+}
+
+.tank{
+    fill:white;
+    stroke:black;
+    stroke-width:4;
+}
+
+.connector{
+    fill:white;
+    stroke:black;
+    stroke-width:3;
+    cursor:pointer;
+}
+
+.pipeOuter{
+    fill:none;
+    stroke:#111;
+    stroke-width:16;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+    cursor:pointer;
+}
+
+.pipeInner{
+    fill:none;
+    stroke:#3ad5ff;
+    stroke-width:8;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+    pointer-events:none;
+}
+
+.selected{
+    stroke:red !important;
+}
+
+.valve{
+    fill:white;
+    stroke:black;
+    stroke-width:4;
+}
+
+.previewPipe{
+    fill:none;
+    stroke:#ff00aa;
+    stroke-width:10;
+    stroke-dasharray:16 10;
+}
+
+.sliderBox{
+    width:120px;
+    background:white;
+    border:2px solid black;
+    border-radius:8px;
+    padding:4px;
+    font-size:10px;
+    text-align:center;
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="toolbar">
+
+<button id="dragBtn">DRAG</button>
+<button id="selectBtn">SELECT</button>
+<button id="addTankBtn">ADD TANK</button>
+<button id="addPipeBtn">ADD PIPE</button>
+<button id="deleteBtn">DELETE</button>
+<button id="saveBtn">SAVE</button>
+<button id="loadBtn">LOAD</button>
+
+<input
+type="file"
+id="loadFile"
+accept=".json"
+style="display:none;"
+>
+
+<div id="status">
+READY
+</div>
+
+</div>
+
+<div id="canvasContainer">
+
+<div id="canvasInner">
+
+<svg id="svg">
+
+<g id="pipeLayer"></g>
+<g id="sliderLayer"></g>
+<g id="tankLayer"></g>
+
+</svg>
+
+</div>
+
+</div>
+
+<script>
+
+const svg =
+document.getElementById("svg");
+
+const pipeLayer =
+document.getElementById("pipeLayer");
+
+const sliderLayer =
+document.getElementById("sliderLayer");
+
+const tankLayer =
+document.getElementById("tankLayer");
+
+const statusText =
+document.getElementById("status");
+
+const canvasInner =
+document.getElementById("canvasInner");
+
+let tanks = [];
+let pipes = [];
+
+let mode = "drag";
+
+let dragData = null;
+
+let selectedObject = {
+    type:null,
+    id:null
+};
+
+let pipeStart = null;
+let pipeBuildPoints = [];
+let previewPipe = null;
+
+let zoom = 1;
+
+
+//
+// ======================================================
+// ZOOM
+// ======================================================
+//
+
+document.addEventListener(
+
+    "wheel",
+
+    (e)=>{
+
+        if(!e.ctrlKey)
+        return;
+
+        e.preventDefault();
+
+        if(e.deltaY < 0){
+            zoom *= 1.1;
+        }else{
+            zoom *= 0.9;
+        }
+
+        zoom =
+            Math.max(
+                0.2,
+                Math.min(
+                    4,
+                    zoom
+                )
+            );
+
+        canvasInner.style.transform =
+            `scale(${zoom})`;
+    },
+
+    {passive:false}
+);
+
+
+//
+// ======================================================
+// HELPERS
+// ======================================================
+//
+
+function svgPoint(evt){
+
+    const rect =
+        svg.getBoundingClientRect();
+
+    return {
+
+        x:
+        (evt.clientX-rect.left)
+        / zoom,
+
+        y:
+        (evt.clientY-rect.top)
+        / zoom
+    };
+}
+
+
+
+function pathD(points){
+
+    let d =
+        `M ${points[0].x} ${points[0].y}`;
+
+    for(let i=1;i<points.length;i++){
+
+        d +=
+            ` L ${points[i].x} ${points[i].y}`;
+    }
+
+    return d;
+}
+
+
+
+function getPorts(t){
+
+    return [
+
+        {id:"in1",x:t.x+70,y:t.y},
+        {id:"in2",x:t.x+160,y:t.y},
+        {id:"in3",x:t.x+250,y:t.y},
+
+        {id:"out1",x:t.x+70,y:t.y+t.h},
+        {id:"out2",x:t.x+160,y:t.y+t.h},
+        {id:"out3",x:t.x+250,y:t.y+t.h}
+    ];
+}
+
+
+
+function getPort(tankId,portId){
+
+    const t =
+        tanks.find(
+            x=>x.id===tankId
+        );
+
+    if(!t)
+    return null;
+
+    return getPorts(t)
+        .find(
+            p=>p.id===portId
+        );
+}
+
+
+
+function addTank(
+    id,
+    label,
+    x,
+    y,
+    tags
+){
+
+    tanks.push({
+
+        id,
+        label,
+        x,
+        y,
+        w:320,
+        h:260,
+        tags
+    });
+}
+
+
+
+//
+// ======================================================
+// DRAW TANK
+// ======================================================
+//
+
+function drawTank(t){
+
+    const g =
+        document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "g"
+        );
+
+
+
+    const rect =
+        document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "rect"
+        );
+
+    rect.setAttribute("x",t.x);
+    rect.setAttribute("y",t.y);
+    rect.setAttribute("width",t.w);
+    rect.setAttribute("height",t.h);
+    rect.setAttribute("rx","20");
+    rect.setAttribute("class","tank");
+
+
+
+    if(
+        selectedObject &&
+        selectedObject.type==="tank"
+        &&
+        selectedObject.id===t.id
+    ){
+        rect.classList.add("selected");
+    }
+
+
+
+    rect.addEventListener(
+
+        "mousedown",
+
+        (e)=>{
+
+            if(mode==="drag"){
+
+                dragData = {
+
+                    type:"tank",
+                    tank:t,
+                    start:svgPoint(e)
+                };
+            }
+
+            if(mode==="select"){
+
+                selectedObject = {
+
+                    type:"tank",
+                    id:t.id
+                };
+
+                rebuild();
+            }
+
+            e.stopPropagation();
+        }
+    );
+
+    g.appendChild(rect);
+
+
+
+    const title =
+        document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "text"
+        );
+
+    title.setAttribute(
+        "x",
+        t.x+t.w/2
+    );
+
+    title.setAttribute(
+        "y",
+        t.y+30
+    );
+
+    title.setAttribute(
+        "text-anchor",
+        "middle"
+    );
+
+    title.setAttribute(
+        "font-size",
+        "18"
+    );
+
+    title.setAttribute(
+        "font-weight",
+        "bold"
+    );
+
+    title.textContent =
+        t.label;
+
+    g.appendChild(title);
+
+
+
+    let yy = t.y+60;
+
+    for(let tag of t.tags){
+
+        const tx =
+            document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "text"
+            );
+
+        tx.setAttribute(
+            "x",
+            t.x+12
+        );
+
+        tx.setAttribute(
+            "y",
+            yy
+        );
+
+        tx.setAttribute(
+            "font-size",
+            "11"
+        );
+
+        tx.textContent = tag;
+
+        g.appendChild(tx);
+
+        yy += 15;
+    }
+
+
+
+    for(let p of getPorts(t)){
+
+        const c =
+            document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "circle"
+            );
+
+        c.setAttribute("cx",p.x);
+        c.setAttribute("cy",p.y);
+        c.setAttribute("r","10");
+        c.setAttribute("class","connector");
+
+
+
+        c.addEventListener(
+
+            "click",
+
+            ()=>{
+
+                if(mode!=="addpipe")
+                return;
+
+
+
+                //
+                // START PIPE
+                //
+
+                if(!pipeStart){
+
+                    pipeStart = {
+
+                        tankId:t.id,
+                        portId:p.id
+                    };
+
+                    pipeBuildPoints = [
+
+                        {
+                            x:p.x,
+                            y:p.y
+                        }
+                    ];
+
+                    statusText.innerText =
+                        "CLICK TO ADD BENDS";
+
+                    return;
+                }
+
+
+
+                //
+                // FINISH PIPE
+                //
+
+                pipeBuildPoints.push({
+
+                    x:p.x,
+                    y:pipeBuildPoints[
+                        pipeBuildPoints.length-1
+                    ].y
+                });
+
+                pipeBuildPoints.push({
+
+                    x:p.x,
+                    y:p.y
+                });
+
+
+
+                pipes.push({
+
+                    id:
+                    "pipe_"+
+                    Date.now()+
+                    Math.random(),
+
+                    startTank:
+                        pipeStart.tankId,
+
+                    startPort:
+                        pipeStart.portId,
+
+                    endTank:
+                        t.id,
+
+                    endPort:
+                        p.id,
+
+                    points:
+                    JSON.parse(
+                        JSON.stringify(
+                            pipeBuildPoints
+                        )
+                    )
+                });
+
+                pipeStart = null;
+                pipeBuildPoints = [];
+
+                rebuild();
+            }
+        );
+
+        g.appendChild(c);
+    }
+
+    tankLayer.appendChild(g);
+}
+
+
+
+//
+// ======================================================
+// PIPE SYNC
+// ======================================================
+//
+
+function syncPipe(pipe){
+
+    const s =
+        getPort(
+            pipe.startTank,
+            pipe.startPort
+        );
+
+    const e =
+        getPort(
+            pipe.endTank,
+            pipe.endPort
+        );
+
+    if(!s || !e)
+    return;
+
+    pipe.points[0] = {
+        x:s.x,
+        y:s.y
+    };
+
+    pipe.points[
+        pipe.points.length-1
+    ] = {
+        x:e.x,
+        y:e.y
+    };
+}
+
+
+
+//
+// ======================================================
+// DRAW PIPE
+// ======================================================
+//
+
+function drawPipe(pipe){
+
+    syncPipe(pipe);
+
+    const d =
+        pathD(pipe.points);
+
+
+
+    const outer =
+        document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "path"
+        );
+
+    outer.setAttribute("d",d);
+    outer.setAttribute("class","pipeOuter");
+
+
+
+    //
+    // PIPE DRAGGING
+    //
+
+    outer.addEventListener(
+
+        "mousedown",
+
+        (e)=>{
+
+            if(mode==="drag"){
+
+                dragData = {
+
+                    type:"pipe",
+                    pipe:pipe,
+                    start:svgPoint(e)
+                };
+            }
+
+            if(mode==="select"){
+
+                selectedObject = {
+
+                    type:"pipe",
+                    id:pipe.id
+                };
+
+                rebuild();
+            }
+
+            e.stopPropagation();
+        }
+    );
+
+
+
+    pipeLayer.appendChild(outer);
+
+
+
+    const inner =
+        document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "path"
+        );
+
+    inner.setAttribute("d",d);
+    inner.setAttribute("class","pipeInner");
+
+    pipeLayer.appendChild(inner);
+
+
+
+    //
+    // VALVE
+    //
+
+    const mid =
+        pipe.points[
+            Math.floor(
+                pipe.points.length/2
+            )
+        ];
+
+
+
+    const valve =
+        document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "circle"
+        );
+
+    valve.setAttribute("cx",mid.x);
+    valve.setAttribute("cy",mid.y);
+    valve.setAttribute("r","18");
+    valve.setAttribute("class","valve");
+
+    pipeLayer.appendChild(valve);
+
+
+
+    //
+    // SLIDER
+    //
+
+    const fo =
+        document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "foreignObject"
+        );
+
+    fo.setAttribute(
+        "x",
+        mid.x-60
+    );
+
+    fo.setAttribute(
+        "y",
+        mid.y-80
+    );
+
+    fo.setAttribute(
+        "width",
+        "120"
+    );
+
+    fo.setAttribute(
+        "height",
+        "60"
+    );
+
+    const div =
+        document.createElement("div");
+
+    div.className =
+        "sliderBox";
+
+    div.innerHTML = `
+
+<div>
+FLOW
+</div>
+
+<input
+type="range"
+min="0"
+max="100"
+value="50"
+style="width:100px;"
+>
+
+`;
+
+    fo.appendChild(div);
+
+    sliderLayer.appendChild(fo);
+}
+
+
+
+//
+// ======================================================
+// REBUILD
+// ======================================================
+//
+
+function rebuild(){
+
+    pipeLayer.innerHTML="";
+    sliderLayer.innerHTML="";
+    tankLayer.innerHTML="";
+
+    for(let p of pipes){
+        drawPipe(p);
+    }
+
+    for(let t of tanks){
+        drawTank(t);
+    }
+}
+
+
+
+//
+// ======================================================
+// PIPE BUILD
+// ======================================================
+//
+
+svg.addEventListener(
+
+    "click",
+
+    (e)=>{
+
+        //
+        // ADD TANK
+        //
+
+        if(mode==="addtank"){
+
+            const pt =
+                svgPoint(e);
+
+            const id =
+                "tank_"+
+                Date.now();
+
+            addTank(
+
+                id,
+
+                "New Tank",
+
+                pt.x,
+
+                pt.y,
+
+                [
+                    "IN ← ?",
+                    "OUT → ?"
+                ]
+            );
+
+            rebuild();
+
+            return;
+        }
+
+
+
+        //
+        // ADD PIPE
+        //
+
+        if(mode!=="addpipe")
+        return;
+
+        if(!pipeStart)
+        return;
+
+        const pt =
+            svgPoint(e);
+
+        const last =
+            pipeBuildPoints[
+                pipeBuildPoints.length-1
+            ];
+
+
+
+        const dx =
+            Math.abs(pt.x-last.x);
+
+        const dy =
+            Math.abs(pt.y-last.y);
+
+
+
+        if(dx > dy){
+
+            pipeBuildPoints.push({
+
+                x:pt.x,
+                y:last.y
+            });
+
+            pipeBuildPoints.push({
+
+                x:pt.x,
+                y:pt.y
+            });
+
+        }else{
+
+            pipeBuildPoints.push({
+
+                x:last.x,
+                y:pt.y
+            });
+
+            pipeBuildPoints.push({
+
+                x:pt.x,
+                y:pt.y
+            });
+        }
+
+
+
+        if(previewPipe){
+
+            previewPipe.remove();
+        }
+
+        previewPipe =
+            document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "path"
+            );
+
+        previewPipe.setAttribute(
+
+            "d",
+
+            pathD(pipeBuildPoints)
+        );
+
+        previewPipe.setAttribute(
+            "class",
+            "previewPipe"
+        );
+
+        pipeLayer.appendChild(
+            previewPipe
+        );
+    }
+);
+
+
+//
+// ======================================================
+// DRAGGING
+// ======================================================
+//
+
+window.addEventListener(
+
+    "mousemove",
+
+    (e)=>{
+
+        if(!dragData)
+        return;
+
+        const pt =
+            svgPoint(e);
+
+        const dx =
+            pt.x-dragData.start.x;
+
+        const dy =
+            pt.y-dragData.start.y;
+
+
+
+        //
+        // TANK DRAG
+        //
+
+        if(dragData.type==="tank"){
+
+            dragData.tank.x += dx;
+            dragData.tank.y += dy;
+        }
+
+
+
+        //
+        // PIPE DRAG
+        //
+
+        if(dragData.type==="pipe"){
+
+            const pts =
+                dragData.pipe.points;
+
+
+
+            //
+            // MOVE INTERNAL POINTS ONLY
+            //
+
+            for(
+                let i=1;
+                i<pts.length-1;
+                i++
+            ){
+
+                pts[i].x += dx;
+                pts[i].y += dy;
+            }
+
+
+
+            //
+            // FORCE ORTHOGONAL
+            //
+
+            for(
+                let i=1;
+                i<pts.length;
+                i++
+            ){
+
+                const a = pts[i-1];
+                const b = pts[i];
+
+                const ddx =
+                    Math.abs(b.x-a.x);
+
+                const ddy =
+                    Math.abs(b.y-a.y);
+
+
+
+                if(ddx > ddy){
+
+                    b.y = a.y;
+
+                }else{
+
+                    b.x = a.x;
+                }
+            }
+        }
+
+
+
+        dragData.start = pt;
+
+        rebuild();
+    }
+);
+
+
+
+window.addEventListener(
+
+    "mouseup",
+
+    ()=>{
+
+        dragData = null;
+    }
+);
+
+
+//
+// ======================================================
+// BUTTONS
+// ======================================================
+//
+
+document.getElementById(
+    "dragBtn"
+).onclick = ()=>{
+
+    mode="drag";
+
+    statusText.innerText =
+        "DRAG MODE";
+};
+
+
+
+document.getElementById(
+    "selectBtn"
+).onclick = ()=>{
+
+    mode="select";
+
+    statusText.innerText =
+        "SELECT MODE";
+};
+
+
+
+document.getElementById(
+    "addTankBtn"
+).onclick = ()=>{
+
+    mode="addtank";
+
+    statusText.innerText =
+        "CLICK TO PLACE TANK";
+};
+
+
+
+document.getElementById(
+    "addPipeBtn"
+).onclick = ()=>{
+
+    mode="addpipe";
+
+    pipeStart = null;
+
+    pipeBuildPoints = [];
+
+    statusText.innerText =
+        "SELECT START CONNECTOR";
+};
+
+
+
+document.getElementById(
+    "deleteBtn"
+).onclick = ()=>{
+
+    if(
+        selectedObject &&
+        selectedObject.type==="tank"
+    ){
+
+        tanks =
+            tanks.filter(
+                t=>
+                t.id!==selectedObject.id
+            );
+
+        pipes =
+            pipes.filter(
+
+                p=>
+
+                p.startTank
+                !==
+                selectedObject.id
+
+                &&
+
+                p.endTank
+                !==
+                selectedObject.id
+            );
+    }
+
+
+
+    if(
+        selectedObject &&
+        selectedObject.type==="pipe"
+    ){
+
+        pipes =
+            pipes.filter(
+                p=>
+                p.id!==selectedObject.id
+            );
+    }
+
+    rebuild();
+};
+
+
+//
+// ======================================================
+// SAVE
+// ======================================================
+//
+
+document.getElementById(
+    "saveBtn"
+).onclick = ()=>{
+
+    const blob =
+        new Blob(
+
+            [
+                JSON.stringify(
+                    {
+                        tanks,
+                        pipes
+                    },
+                    null,
+                    2
+                )
+            ],
+
+            {
+                type:
+                "application/json"
+            }
+        );
+
+    const url =
+        URL.createObjectURL(blob);
+
+    const a =
+        document.createElement("a");
+
+    a.href = url;
+
+    a.download =
+        "moniac-layout.json";
+
+    a.click();
+
+    URL.revokeObjectURL(url);
+};
+
+
+//
+// ======================================================
+// LOAD
+// ======================================================
+//
+
+document.getElementById(
+    "loadBtn"
+).onclick = ()=>{
+
+    document.getElementById(
+        "loadFile"
+    ).click();
+};
+
+
+
+document.getElementById(
+    "loadFile"
+).addEventListener(
+
+    "change",
+
+    (e)=>{
+
+        const file =
+            e.target.files[0];
+
+        if(!file)
+        return;
+
+        const reader =
+            new FileReader();
+
+        reader.onload = ()=>{
+
+            const data =
+                JSON.parse(
+                    reader.result
+                );
+
+            tanks =
+                data.tanks || [];
+
+            pipes =
+                data.pipes || [];
+
+            rebuild();
+        };
+
+        reader.readAsText(file);
+    }
+);
+
+
+//
+// ======================================================
+// DEFAULTS
+// ======================================================
+//
+
+function loadDefaults(){
+
+    tanks=[];
+    pipes=[];
+
+
+
+    const tankData = [
+
+        ["t1","National Income",4200,300,
+            [
+                "IN ← Production",
+                "IN ← Exports",
+                "OUT → Households",
+                "OUT → Government"
+            ]
+        ],
+
+        ["t2","Households",1200,1800,
+            [
+                "IN ← National Income",
+                "IN ← Welfare",
+                "OUT → Consumption",
+                "OUT → Savings",
+                "OUT → Government"
+            ]
+        ],
+
+        ["t3","Consumption",4200,1800,
+            [
+                "IN ← Households",
+                "OUT → Production",
+                "OUT → Imports"
+            ]
+        ],
+
+        ["t4","Savings",1200,3800,
+            [
+                "IN ← Households",
+                "OUT → Banking"
+            ]
+        ],
+
+        ["t5","Banking",4200,3800,
+            [
+                "IN ← Savings",
+                "OUT → Investment"
+            ]
+        ],
+
+        ["t6","Investment",7200,3800,
+            [
+                "IN ← Banking",
+                "OUT → Production"
+            ]
+        ],
+
+        ["t7","Production",7200,1800,
+            [
+                "IN ← Consumption",
+                "IN ← Investment",
+                "OUT → National Income"
+            ]
+        ],
+
+        ["t8","Government",1200,5800,
+            [
+                "IN ← National Income",
+                "IN ← Households",
+                "OUT → Welfare"
+            ]
+        ],
+
+        ["t9","Welfare",4200,5800,
+            [
+                "IN ← Government",
+                "OUT → Households"
+            ]
+        ],
+
+        ["t10","Imports",7200,5800,
+            [
+                "IN ← Consumption",
+                "OUT → Foreign Exchange"
+            ]
+        ],
+
+        ["t11","Foreign Exchange",9800,5800,
+            [
+                "IN ← Imports",
+                "OUT → Exports"
+            ]
+        ],
+
+        ["t12","Exports",9800,1800,
+            [
+                "IN ← Foreign Exchange",
+                "OUT → National Income"
+            ]
+        ]
+    ];
+
+
+
+    for(let t of tankData){
+
+        addTank(
+            t[0],
+            t[1],
+            t[2],
+            t[3],
+            t[4]
+        );
+    }
+
+
+
+    const pipeData = [
+
+        ["p1","t1","out1","t2","in2",
+            [
+                {x:4270,y:560},
+                {x:3000,y:560},
+                {x:3000,y:1800},
+                {x:1360,y:1800}
+            ]
+        ],
+
+        ["p2","t2","out1","t3","in1",
+            [
+                {x:1270,y:2060},
+                {x:2600,y:2060},
+                {x:2600,y:1800},
+                {x:4270,y:1800}
+            ]
+        ],
+
+        ["p3","t3","out1","t7","in1",
+            [
+                {x:4270,y:2060},
+                {x:5700,y:2060},
+                {x:5700,y:1800},
+                {x:7270,y:1800}
+            ]
+        ],
+
+        ["p4","t4","out2","t5","in2",
+            [
+                {x:1360,y:4060},
+                {x:2800,y:4060},
+                {x:2800,y:3800},
+                {x:4360,y:3800}
+            ]
+        ],
+
+        ["p5","t5","out2","t6","in2",
+            [
+                {x:4360,y:4060},
+                {x:5800,y:4060},
+                {x:5800,y:3800},
+                {x:7360,y:3800}
+            ]
+        ],
+
+        ["p6","t6","out1","t7","in3",
+            [
+                {x:7270,y:4060},
+                {x:8600,y:4060},
+                {x:8600,y:1800},
+                {x:7450,y:1800}
+            ]
+        ],
+
+        ["p7","t7","out2","t1","in2",
+            [
+                {x:7360,y:2060},
+                {x:7360,y:900},
+                {x:4360,y:300}
+            ]
+        ],
+
+        ["p8","t8","out2","t9","in2",
+            [
+                {x:1360,y:6060},
+                {x:2800,y:6060},
+                {x:2800,y:5800},
+                {x:4360,y:5800}
+            ]
+        ],
+
+        ["p9","t9","out2","t2","in3",
+            [
+                {x:4360,y:6060},
+                {x:4360,y:7200},
+                {x:1600,y:7200},
+                {x:1450,y:1800}
+            ]
+        ],
+
+        ["p10","t10","out2","t11","in2",
+            [
+                {x:7360,y:6060},
+                {x:8600,y:6060},
+                {x:8600,y:5800},
+                {x:9960,y:5800}
+            ]
+        ],
+
+        ["p11","t11","out1","t12","in2",
+            [
+                {x:9870,y:6060},
+                {x:9870,y:4000},
+                {x:9960,y:1800}
+            ]
+        ],
+
+        ["p12","t12","out2","t1","in3",
+            [
+                {x:9960,y:2060},
+                {x:11200,y:2060},
+                {x:11200,y:700},
+                {x:4450,y:300}
+            ]
+        ]
+    ];
+
+
+
+    for(let p of pipeData){
+
+        pipes.push({
+
+            id:p[0],
+            startTank:p[1],
+            startPort:p[2],
+            endTank:p[3],
+            endPort:p[4],
+            points:p[5]
+        });
+    }
+
+    rebuild();
+}
+
+
+
+window.addEventListener(
+
+    "load",
+
+    ()=>{
+
+        loadDefaults();
+
+        rebuild();
+
+        statusText.innerText =
+            "DEFAULT MONIAC LOADED";
+    }
+);
+
+</script>
+
+</body>
+</html>
