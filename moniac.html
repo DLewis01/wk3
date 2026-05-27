@@ -1,0 +1,1973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MONIAC Display</title>
+
+<style>
+
+*{
+    box-sizing:border-box;
+    user-select:none;
+}
+
+body{
+    margin:0;
+    background:#eef2f5;
+    font-family:Arial,Helvetica,sans-serif;
+    overflow:hidden;
+}
+
+#topbar{
+    height:70px;
+    background:#222;
+    color:white;
+    display:flex;
+    align-items:center;
+    padding:10px 20px;
+    gap:20px;
+    font-weight:bold;
+}
+
+#stats{
+    display:flex;
+    gap:18px;
+    flex-wrap:wrap;
+}
+
+.stat{
+    background:#333;
+    padding:6px 12px;
+    border-radius:10px;
+}
+
+#view{
+    position:absolute;
+    top:70px;
+    left:0;
+    right:0;
+    bottom:0;
+    overflow:auto;
+    background:#cfd8df;
+}
+
+svg{
+    width:16000px;
+    height:12000px;
+    display:block;
+    background:
+        radial-gradient(circle at top,#f7fbff,#dce4ea);
+}
+
+.pipeOuter{
+    fill:none;
+    stroke:#111;
+    stroke-width:18;
+    stroke-linejoin:round;
+    stroke-linecap:round;
+}
+
+.pipeInner{
+    fill:none;
+    stroke:#43d9ff;
+    stroke-width:8;
+    stroke-linejoin:round;
+    stroke-linecap:round;
+}
+
+.flowDot{
+    fill:#8fffff;
+    filter:url(#glow);
+}
+
+.tankGlass{
+    fill:rgba(255,255,255,0.22);
+    stroke:#111;
+    stroke-width:5;
+}
+
+.water{
+    fill:#3fd8ff;
+}
+
+.label{
+    font-size:18px;
+    font-weight:bold;
+    text-anchor:middle;
+}
+
+.value{
+    font-size:14px;
+    font-weight:bold;
+    text-anchor:middle;
+}
+
+.valve{
+    fill:white;
+    stroke:#111;
+    stroke-width:4;
+}
+
+.sliderBox{
+    width:130px;
+    background:white;
+    border:3px solid black;
+    border-radius:14px;
+    padding:4px;
+    text-align:center;
+    font-size:10px;
+    font-weight:bold;
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="topbar">
+
+<div>
+💧 MONIAC DISPLAY
+</div>
+
+<div id="stats">
+
+<div class="stat">
+GDP:
+<span id="gdpVal">0</span>
+</div>
+
+<div class="stat">
+FLOW:
+<span id="flowVal">0</span>
+</div>
+
+<div class="stat">
+NET:
+<span id="netVal">0</span>
+</div>
+
+</div>
+
+<button id="resetBtn">
+RESET
+</button>
+
+</div>
+
+<div id="view">
+
+<svg
+id="svg"
+viewBox="0 0 16000 12000"
+preserveAspectRatio="xMidYMid meet"
+></svg>
+
+</div>
+
+
+
+<!-- ===================================================== -->
+<!-- EMBEDDED LAYOUT JSON -->
+<!-- ===================================================== -->
+
+<script id="defaultLayout" type="application/json">
+{
+  "tanks": [
+    {
+      "id": "t1",
+      "label": "National Income",
+      "x": 2369.8692130278287,
+      "y": 1737.7877975445479,
+      "w": 320,
+      "h": 260,
+      "tags": [
+        "IN ← Production",
+        "IN ← Exports",
+        "OUT → Households",
+        "OUT → Government"
+      ]
+    },
+    {
+      "id": "t2",
+      "label": "Households",
+      "x": 1160.3491041294396,
+      "y": 1188.0246884839228,
+      "w": 320,
+      "h": 260,
+      "tags": [
+        "IN ← National Income",
+        "IN ← Welfare",
+        "OUT → Consumption",
+        "OUT → Savings",
+        "OUT → Government"
+      ]
+    },
+    {
+      "id": "t3",
+      "label": "Consumption",
+      "x": 1766.6284521353382,
+      "y": 1191.0293638002845,
+      "w": 320,
+      "h": 260,
+      "tags": [
+        "IN ← Households",
+        "OUT → Production",
+        "OUT → Imports"
+      ]
+    },
+    {
+      "id": "t4",
+      "label": "Savings",
+      "x": 1772.1594122727784,
+      "y": 1750.2948144740683,
+      "w": 320,
+      "h": 260,
+      "tags": [
+        "IN ← Households",
+        "OUT → Banking"
+      ]
+    },
+    {
+      "id": "t5",
+      "label": "Banking",
+      "x": 1769.626745879369,
+      "y": 2380.0869534116314,
+      "w": 320,
+      "h": 260,
+      "tags": [
+        "IN ← Savings",
+        "OUT → Investment"
+      ]
+    },
+    {
+      "id": "t6",
+      "label": "Investment",
+      "x": 3012.6123147787594,
+      "y": 1185.3979662255163,
+      "w": 320,
+      "h": 260,
+      "tags": [
+        "IN ← Banking",
+        "OUT → Production"
+      ]
+    },
+    {
+      "id": "t7",
+      "label": "Production",
+      "x": 3012.683156056375,
+      "y": 1731.5479048472603,
+      "w": 320,
+      "h": 260,
+      "tags": [
+        "IN ← Consumption",
+        "IN ← Investment",
+        "OUT → National Income"
+      ]
+    },
+    {
+      "id": "t8",
+      "label": "Government",
+      "x": 1157.352028407542,
+      "y": 1751.738226248169,
+      "w": 320,
+      "h": 260,
+      "tags": [
+        "IN ← National Income",
+        "IN ← Households",
+        "OUT → Welfare"
+      ]
+    },
+    {
+      "id": "t9",
+      "label": "Welfare",
+      "x": 1155.5865970898028,
+      "y": 2386.244697934415,
+      "w": 320,
+      "h": 260,
+      "tags": [
+        "IN ← Government",
+        "OUT → Households"
+      ]
+    },
+    {
+      "id": "t10",
+      "label": "Imports",
+      "x": 2355.3192352009673,
+      "y": 1180.8467703192664,
+      "w": 320,
+      "h": 260,
+      "tags": [
+        "IN ← Consumption",
+        "OUT → Foreign Exchange"
+      ]
+    },
+    {
+      "id": "t11",
+      "label": "Foreign Exchange",
+      "x": 2367.132318435468,
+      "y": 2354.2557487334307,
+      "w": 320,
+      "h": 260,
+      "tags": [
+        "IN ← Imports",
+        "OUT → Exports"
+      ]
+    },
+    {
+      "id": "t12",
+      "label": "Exports",
+      "x": 3044.249915755871,
+      "y": 2373.5590817676734,
+      "w": 320,
+      "h": 260,
+      "tags": [
+        "IN ← Foreign Exchange",
+        "OUT → National Income"
+      ]
+    }
+  ],
+  "pipes": [
+    {
+      "id": "p8",
+      "startTank": "t8",
+      "startPort": "out2",
+      "endTank": "t9",
+      "endPort": "in2",
+      "points": [
+        {
+          "x": 1317.352028407542,
+          "y": 2011.738226248169
+        },
+        {
+          "x": 1317.352028407542,
+          "y": 2209.37602267923
+        },
+        {
+          "x": 1315.9715836321516,
+          "y": 2209.37602267923
+        },
+        {
+          "x": 1315.5865970898028,
+          "y": 2386.244697934415
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798754293930.1659972533945997",
+      "startTank": "t2",
+      "startPort": "out1",
+      "endTank": "t8",
+      "endPort": "in1",
+      "points": [
+        {
+          "x": 1230.3491041294396,
+          "y": 1448.0246884839228
+        },
+        {
+          "x": 1230.3491041294396,
+          "y": 1499.9266910363112
+        },
+        {
+          "x": 1230.3491041294396,
+          "y": 1504.2457341306445
+        },
+        {
+          "x": 1230.3491041294396,
+          "y": 1690.5368504347523
+        },
+        {
+          "x": 1218.3068277699003,
+          "y": 1690.5368504347523
+        },
+        {
+          "x": 1227.352028407542,
+          "y": 1690.5368504347523
+        },
+        {
+          "x": 1227.352028407542,
+          "y": 1751.738226248169
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798754953970.6582678748727855",
+      "startTank": "t2",
+      "startPort": "out3",
+      "endTank": "t3",
+      "endPort": "in1",
+      "points": [
+        {
+          "x": 1410.3491041294396,
+          "y": 1448.0246884839228
+        },
+        {
+          "x": 1410.3491041294396,
+          "y": 1444.9291597850577
+        },
+        {
+          "x": 1409.2320514447572,
+          "y": 1444.9291597850577
+        },
+        {
+          "x": 1409.2320514447572,
+          "y": 1503.3189126564946
+        },
+        {
+          "x": 1408.3052299706073,
+          "y": 1503.3189126564946
+        },
+        {
+          "x": 1627.9619193441079,
+          "y": 1503.3189126564946
+        },
+        {
+          "x": 1627.9619193441079,
+          "y": 1518.1480562428912
+        },
+        {
+          "x": 1627.9619193441079,
+          "y": 1077.9078560217406
+        },
+        {
+          "x": 1636.303312611456,
+          "y": 1077.9078560217406
+        },
+        {
+          "x": 1829.0821792346126,
+          "y": 1077.9078560217406
+        },
+        {
+          "x": 1829.0821792346126,
+          "y": 1070.4932842285423
+        },
+        {
+          "x": 1836.6284521353382,
+          "y": 1070.4932842285423
+        },
+        {
+          "x": 1836.6284521353382,
+          "y": 1191.0293638002845
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798755172560.8052015080383927",
+      "startTank": "t2",
+      "startPort": "out2",
+      "endTank": "t4",
+      "endPort": "in1",
+      "points": [
+        {
+          "x": 1320.3491041294396,
+          "y": 1448.0246884839228
+        },
+        {
+          "x": 1320.3491041294396,
+          "y": 1454.1973745265557
+        },
+        {
+          "x": 1319.3303684522275,
+          "y": 1454.1973745265557
+        },
+        {
+          "x": 1319.3303684522275,
+          "y": 1575.6109876401783
+        },
+        {
+          "x": 1310.9889751848793,
+          "y": 1575.6109876401783
+        },
+        {
+          "x": 1840.20403692441,
+          "y": 1575.6109876401783
+        },
+        {
+          "x": 1840.20403692441,
+          "y": 1612.68384660617
+        },
+        {
+          "x": 1842.1594122727784,
+          "y": 1612.68384660617
+        },
+        {
+          "x": 1842.1594122727784,
+          "y": 1750.2948144740683
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798756842460.42137088893882824",
+      "startTank": "t4",
+      "startPort": "out2",
+      "endTank": "t5",
+      "endPort": "in2",
+      "points": [
+        {
+          "x": 1932.1594122727784,
+          "y": 2010.2948144740683
+        },
+        {
+          "x": 1931.0325413910896,
+          "y": 2010.2948144740683
+        },
+        {
+          "x": 1931.0325413910896,
+          "y": 2010.2902590164304
+        },
+        {
+          "x": 1931.0325413910896,
+          "y": 2295.751273054566
+        },
+        {
+          "x": 1931.0325413910896,
+          "y": 2295.751273054566
+        },
+        {
+          "x": 1930.5535673535187,
+          "y": 2295.751273054566
+        },
+        {
+          "x": 1929.626745879369,
+          "y": 2380.0869534116314
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798757913160.9868898237443631",
+      "startTank": "t1",
+      "startPort": "out1",
+      "endTank": "t8",
+      "endPort": "in3",
+      "points": [
+        {
+          "x": 2439.8692130278287,
+          "y": 1997.7877975445479
+        },
+        {
+          "x": 2439.8692130278287,
+          "y": 1993.607472481734
+        },
+        {
+          "x": 2437.0770662768755,
+          "y": 1993.607472481734
+        },
+        {
+          "x": 2437.0770662768755,
+          "y": 2049.2167609307216
+        },
+        {
+          "x": 2438.003887751025,
+          "y": 2049.2167609307216
+        },
+        {
+          "x": 2222.981305748274,
+          "y": 2049.2167609307216
+        },
+        {
+          "x": 2222.981305748274,
+          "y": 2048.2899394565716
+        },
+        {
+          "x": 2222.981305748274,
+          "y": 1650.6835270463114
+        },
+        {
+          "x": 2218.347198377525,
+          "y": 1650.6835270463114
+        },
+        {
+          "x": 1400.890658177409,
+          "y": 1650.6835270463114
+        },
+        {
+          "x": 1400.890658177409,
+          "y": 1648.8298840980117
+        },
+        {
+          "x": 1407.352028407542,
+          "y": 1648.8298840980117
+        },
+        {
+          "x": 1407.352028407542,
+          "y": 1751.738226248169
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798761597660.6880980585128712",
+      "startTank": "t9",
+      "startPort": "out1",
+      "endTank": "t2",
+      "endPort": "in1",
+      "points": [
+        {
+          "x": 1225.5865970898028,
+          "y": 2646.244697934415
+        },
+        {
+          "x": 1224.7945780889488,
+          "y": 2646.244697934415
+        },
+        {
+          "x": 1224.7945780889488,
+          "y": 2647.0166117573367
+        },
+        {
+          "x": 1224.7945780889488,
+          "y": 2743.406045068915
+        },
+        {
+          "x": 1228.501863985548,
+          "y": 2743.406045068915
+        },
+        {
+          "x": 1032.942532939942,
+          "y": 2743.406045068915
+        },
+        {
+          "x": 1032.942532939942,
+          "y": 2735.064651801567
+        },
+        {
+          "x": 1032.942532939942,
+          "y": 1062.151890961194
+        },
+        {
+          "x": 1044.0643906297396,
+          "y": 1062.151890961194
+        },
+        {
+          "x": 1224.7945780889488,
+          "y": 1062.151890961194
+        },
+        {
+          "x": 1224.7945780889488,
+          "y": 1061.2250694870443
+        },
+        {
+          "x": 1230.3491041294396,
+          "y": 1061.2250694870443
+        },
+        {
+          "x": 1230.3491041294396,
+          "y": 1188.0246884839228
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798762527210.7951811888169514",
+      "startTank": "t3",
+      "startPort": "out3",
+      "endTank": "t10",
+      "endPort": "in1",
+      "points": [
+        {
+          "x": 2016.6284521353382,
+          "y": 1451.0293638002845
+        },
+        {
+          "x": 2012.592831116271,
+          "y": 1451.0293638002845
+        },
+        {
+          "x": 2012.592831116271,
+          "y": 1454.1973745265557
+        },
+        {
+          "x": 2012.592831116271,
+          "y": 1548.7331648898344
+        },
+        {
+          "x": 2011.6660096421215,
+          "y": 1548.7331648898344
+        },
+        {
+          "x": 2220.2008413258245,
+          "y": 1548.7331648898344
+        },
+        {
+          "x": 2220.2008413258245,
+          "y": 1551.5136293122837
+        },
+        {
+          "x": 2220.2008413258245,
+          "y": 1053.810497693846
+        },
+        {
+          "x": 2214.6399124809254,
+          "y": 1053.810497693846
+        },
+        {
+          "x": 2415.76017237143,
+          "y": 1053.810497693846
+        },
+        {
+          "x": 2415.76017237143,
+          "y": 1044.5422829523482
+        },
+        {
+          "x": 2425.3192352009673,
+          "y": 1044.5422829523482
+        },
+        {
+          "x": 2425.3192352009673,
+          "y": 1180.8467703192664
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798763379620.1264968888984891",
+      "startTank": "t6",
+      "startPort": "out2",
+      "endTank": "t7",
+      "endPort": "in2",
+      "points": [
+        {
+          "x": 3172.6123147787594,
+          "y": 1445.3979662255163
+        },
+        {
+          "x": 3174.826959700109,
+          "y": 1445.3979662255163
+        },
+        {
+          "x": 3174.826959700109,
+          "y": 1444.9291597850577
+        },
+        {
+          "x": 3174.826959700109,
+          "y": 1615.4643110286192
+        },
+        {
+          "x": 3172.0464952776597,
+          "y": 1615.4643110286192
+        },
+        {
+          "x": 3172.683156056375,
+          "y": 1615.4643110286192
+        },
+        {
+          "x": 3172.683156056375,
+          "y": 1731.5479048472603
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798763660010.23823933618578852",
+      "startTank": "t5",
+      "startPort": "out3",
+      "endTank": "t6",
+      "endPort": "in2",
+      "points": [
+        {
+          "x": 2019.626745879369,
+          "y": 2640.0869534116314
+        },
+        {
+          "x": 2017.22693848702,
+          "y": 2640.0869534116314
+        },
+        {
+          "x": 2017.22693848702,
+          "y": 2640.528861438288
+        },
+        {
+          "x": 2017.22693848702,
+          "y": 2718.3818652668706
+        },
+        {
+          "x": 2015.3732955387206,
+          "y": 2718.3818652668706
+        },
+        {
+          "x": 2221.127662799974,
+          "y": 2718.3818652668706
+        },
+        {
+          "x": 2221.127662799974,
+          "y": 2726.7232585342185
+        },
+        {
+          "x": 2221.127662799974,
+          "y": 2151.1671230871984
+        },
+        {
+          "x": 2204.444876265278,
+          "y": 2151.1671230871984
+        },
+        {
+          "x": 2845.805336376933,
+          "y": 2151.1671230871984
+        },
+        {
+          "x": 2845.805336376933,
+          "y": 2135.411158026652
+        },
+        {
+          "x": 2845.805336376933,
+          "y": 1023.2253890469028
+        },
+        {
+          "x": 2845.805336376933,
+          "y": 1023.2253890469028
+        },
+        {
+          "x": 3160.9246375878624,
+          "y": 1023.2253890469028
+        },
+        {
+          "x": 3160.9246375878624,
+          "y": 1016.7376387278543
+        },
+        {
+          "x": 3172.6123147787594,
+          "y": 1016.7376387278543
+        },
+        {
+          "x": 3172.6123147787594,
+          "y": 1185.3979662255163
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798764047510.8647030290493813",
+      "startTank": "t3",
+      "startPort": "out2",
+      "endTank": "t7",
+      "endPort": "in1",
+      "points": [
+        {
+          "x": 1926.6284521353382,
+          "y": 1451.0293638002845
+        },
+        {
+          "x": 1923.6179695978913,
+          "y": 1451.0293638002845
+        },
+        {
+          "x": 1923.6179695978913,
+          "y": 1451.4169101041064
+        },
+        {
+          "x": 1923.6179695978913,
+          "y": 1600.6351674422226
+        },
+        {
+          "x": 1928.2520769686403,
+          "y": 1600.6351674422226
+        },
+        {
+          "x": 3084.9252767075795,
+          "y": 1600.6351674422226
+        },
+        {
+          "x": 3084.9252767075795,
+          "y": 1593.2205956490243
+        },
+        {
+          "x": 3082.683156056375,
+          "y": 1593.2205956490243
+        },
+        {
+          "x": 3082.683156056375,
+          "y": 1731.5479048472603
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798764398310.5099375703339866",
+      "startTank": "t7",
+      "startPort": "out1",
+      "endTank": "t1",
+      "endPort": "in2",
+      "points": [
+        {
+          "x": 3082.683156056375,
+          "y": 1991.5479048472603
+        },
+        {
+          "x": 3080.2911693368305,
+          "y": 1991.5479048472603
+        },
+        {
+          "x": 3080.2911693368305,
+          "y": 1993.607472481734
+        },
+        {
+          "x": 3080.2911693368305,
+          "y": 2148.386658664749
+        },
+        {
+          "x": 3079.3643478626805,
+          "y": 2148.386658664749
+        },
+        {
+          "x": 2932.9265549470138,
+          "y": 2148.386658664749
+        },
+        {
+          "x": 2932.9265549470138,
+          "y": 2148.386658664749
+        },
+        {
+          "x": 2932.9265549470138,
+          "y": 1668.2931350551573
+        },
+        {
+          "x": 2924.5851616796654,
+          "y": 1668.2931350551573
+        },
+        {
+          "x": 2528.8323922177046,
+          "y": 1668.2931350551573
+        },
+        {
+          "x": 2528.8323922177046,
+          "y": 1671.0735994776069
+        },
+        {
+          "x": 2529.8692130278287,
+          "y": 1671.0735994776069
+        },
+        {
+          "x": 2529.8692130278287,
+          "y": 1737.7877975445479
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798764863820.6435546882233133",
+      "startTank": "t11",
+      "startPort": "out2",
+      "endTank": "t12",
+      "endPort": "in2",
+      "points": [
+        {
+          "x": 2527.132318435468,
+          "y": 2614.2557487334307
+        },
+        {
+          "x": 2523.271463372806,
+          "y": 2614.2557487334307
+        },
+        {
+          "x": 2523.271463372806,
+          "y": 2616.431503110394
+        },
+        {
+          "x": 2523.271463372806,
+          "y": 2712.820936421972
+        },
+        {
+          "x": 2526.0519277952553,
+          "y": 2712.820936421972
+        },
+        {
+          "x": 2873.609980601427,
+          "y": 2712.820936421972
+        },
+        {
+          "x": 2873.609980601427,
+          "y": 2708.186829051223
+        },
+        {
+          "x": 2873.609980601427,
+          "y": 2267.9466288300723
+        },
+        {
+          "x": 2859.70765848918,
+          "y": 2267.9466288300723
+        },
+        {
+          "x": 3201.704782450453,
+          "y": 2267.9466288300723
+        },
+        {
+          "x": 3201.704782450453,
+          "y": 2260.532057036874
+        },
+        {
+          "x": 3204.249915755871,
+          "y": 2260.532057036874
+        },
+        {
+          "x": 3204.249915755871,
+          "y": 2373.5590817676734
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798765117880.17406058620974263",
+      "startTank": "t10",
+      "startPort": "out3",
+      "endTank": "t11",
+      "endPort": "in2",
+      "points": [
+        {
+          "x": 2605.3192352009673,
+          "y": 1440.8467703192664
+        },
+        {
+          "x": 2605.3192352009673,
+          "y": 1440.2950524143089
+        },
+        {
+          "x": 2604.8317530979875,
+          "y": 1440.2950524143089
+        },
+        {
+          "x": 2604.8317530979875,
+          "y": 1536.684485725887
+        },
+        {
+          "x": 2604.8317530979875,
+          "y": 1536.684485725887
+        },
+        {
+          "x": 2774.4400828673993,
+          "y": 1536.684485725887
+        },
+        {
+          "x": 2774.4400828673993,
+          "y": 1529.2699139326887
+        },
+        {
+          "x": 2774.4400828673993,
+          "y": 2259.605235562724
+        },
+        {
+          "x": 2745.708617168756,
+          "y": 2259.605235562724
+        },
+        {
+          "x": 2526.9787492694054,
+          "y": 2259.605235562724
+        },
+        {
+          "x": 2526.9787492694054,
+          "y": 2256.8247711402746
+        },
+        {
+          "x": 2527.132318435468,
+          "y": 2256.8247711402746
+        },
+        {
+          "x": 2527.132318435468,
+          "y": 2354.2557487334307
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798765704870.1771202922550441",
+      "startTank": "t1",
+      "startPort": "out2",
+      "endTank": "t2",
+      "endPort": "in3",
+      "points": [
+        {
+          "x": 2529.8692130278287,
+          "y": 1997.7877975445479
+        },
+        {
+          "x": 2525.5885170581805,
+          "y": 1997.7877975445479
+        },
+        {
+          "x": 2525.5885170581805,
+          "y": 1998.241579852483
+        },
+        {
+          "x": 2525.5885170581805,
+          "y": 2099.26512053481
+        },
+        {
+          "x": 2530.2226244289295,
+          "y": 2099.26512053481
+        },
+        {
+          "x": 1524.6213249764062,
+          "y": 2099.26512053481
+        },
+        {
+          "x": 1524.6213249764062,
+          "y": 2101.11876348311
+        },
+        {
+          "x": 1524.6213249764062,
+          "y": 1077.9078560217406
+        },
+        {
+          "x": 1521.8408605539569,
+          "y": 1077.9078560217406
+        },
+        {
+          "x": 1404.1345333369334,
+          "y": 1077.9078560217406
+        },
+        {
+          "x": 1404.1345333369334,
+          "y": 1075.127391599291
+        },
+        {
+          "x": 1410.3491041294396,
+          "y": 1075.127391599291
+        },
+        {
+          "x": 1410.3491041294396,
+          "y": 1188.0246884839228
+        }
+      ]
+    },
+    {
+      "id": "pipe_17798766727460.5731300961290522",
+      "startTank": "t12",
+      "startPort": "out2",
+      "endTank": "t1",
+      "endPort": "in3",
+      "points": [
+        {
+          "x": 3204.249915755871,
+          "y": 2633.5590817676734
+        },
+        {
+          "x": 3201.241371713378,
+          "y": 2633.5590817676734
+        },
+        {
+          "x": 3201.241371713378,
+          "y": 2632.18746817094
+        },
+        {
+          "x": 3201.241371713378,
+          "y": 2710.0404719995227
+        },
+        {
+          "x": 3197.5340858167788,
+          "y": 2710.0404719995227
+        },
+        {
+          "x": 3425.5321684576274,
+          "y": 2710.0404719995227
+        },
+        {
+          "x": 3425.5321684576274,
+          "y": 2708.186829051223
+        },
+        {
+          "x": 3425.5321684576274,
+          "y": 1697.9514222279506
+        },
+        {
+          "x": 3400.507988655583,
+          "y": 1697.9514222279506
+        },
+        {
+          "x": 2617.3438429990097,
+          "y": 1697.9514222279506
+        },
+        {
+          "x": 2617.3438429990097,
+          "y": 1695.1709578055013
+        },
+        {
+          "x": 2619.8692130278287,
+          "y": 1695.1709578055013
+        },
+        {
+          "x": 2619.8692130278287,
+          "y": 1737.7877975445479
+        }
+      ]
+    }
+  ]
+}
+
+</script>
+
+
+<script>
+
+//
+// ======================================================
+// SVG
+// ======================================================
+//
+
+const svg =
+document.getElementById("svg");
+
+
+
+//
+// ======================================================
+// STATE
+// ======================================================
+//
+
+let tanks = [];
+let pipes = [];
+
+let economy = {};
+
+let waterRects = {};
+
+let params = {};
+
+
+
+//
+// ======================================================
+// LOAD LAYOUT
+// ======================================================
+//
+
+function loadLayout(){
+
+    const raw =
+        document.getElementById(
+            "defaultLayout"
+        ).textContent;
+
+    const data =
+        JSON.parse(raw);
+
+    tanks =
+        data.tanks || [];
+
+    pipes =
+        data.pipes || [];
+
+    initialiseEconomy();
+
+    buildScene();
+
+    updateEconomy();
+
+    setInterval(
+        updateEconomy,
+        100
+    );
+}
+
+
+
+//
+// ======================================================
+// INITIALISE ECONOMY
+// ======================================================
+//
+
+function initialiseEconomy(){
+
+    economy = {};
+
+    params = {};
+
+    for(let t of tanks){
+
+        economy[t.id] =
+            200 + Math.random()*200;
+    }
+
+    for(let p of pipes){
+
+        params[p.id] = 0.5;
+    }
+}
+
+
+
+//
+// ======================================================
+// PATH
+// ======================================================
+//
+
+function pathD(points){
+
+    let d =
+        `M ${points[0].x} ${points[0].y}`;
+
+    for(let i=1;i<points.length;i++){
+
+        d +=
+            ` L ${points[i].x} ${points[i].y}`;
+    }
+
+    return d;
+}
+
+
+
+//
+// ======================================================
+// FLOW DOTS
+// ======================================================
+//
+
+function addFlowDots(path, speed){
+
+    const len =
+        path.getTotalLength();
+
+    const count =
+        Math.max(
+            2,
+            Math.floor(len/180)
+        );
+
+    for(let i=0;i<count;i++){
+
+        const dot =
+            document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "circle"
+            );
+
+        dot.setAttribute("r","5");
+        dot.setAttribute("class","flowDot");
+
+        svg.appendChild(dot);
+
+        animateDot(
+            dot,
+            path,
+            i*1200,
+            speed
+        );
+    }
+}
+
+
+
+function animateDot(
+    dot,
+    path,
+    delay,
+    speed
+){
+
+    const len =
+        path.getTotalLength();
+
+    const start =
+        performance.now()+delay;
+
+    function frame(time){
+
+        let t =
+            (
+                (time-start)
+                *
+                0.05
+                *
+                speed
+            ) % len;
+
+        const pt =
+            path.getPointAtLength(t);
+
+        dot.setAttribute(
+            "cx",
+            pt.x
+        );
+
+        dot.setAttribute(
+            "cy",
+            pt.y
+        );
+
+        requestAnimationFrame(frame);
+    }
+
+    requestAnimationFrame(frame);
+}
+
+
+
+//
+// ======================================================
+// BUILD SCENE
+// ======================================================
+//
+
+function buildScene(){
+
+    svg.innerHTML="";
+
+
+
+    //
+    // FILTER
+    //
+
+    const defs =
+        document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "defs"
+        );
+
+    defs.innerHTML = `
+
+<filter id="glow">
+
+<feGaussianBlur
+stdDeviation="3"
+result="blur"
+/>
+
+<feMerge>
+<feMergeNode in="blur"/>
+<feMergeNode in="SourceGraphic"/>
+</feMerge>
+
+</filter>
+
+`;
+
+    svg.appendChild(defs);
+
+
+
+    //
+    // PIPES
+    //
+
+    for(let pipe of pipes){
+
+        const d =
+            pathD(pipe.points);
+
+
+
+        const outer =
+            document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "path"
+            );
+
+        outer.setAttribute("d",d);
+        outer.setAttribute(
+            "class",
+            "pipeOuter"
+        );
+
+        svg.appendChild(outer);
+
+
+
+        const inner =
+            document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "path"
+            );
+
+        inner.setAttribute("d",d);
+        inner.setAttribute(
+            "class",
+            "pipeInner"
+        );
+
+        svg.appendChild(inner);
+
+
+
+        addFlowDots(
+            inner,
+            1
+        );
+
+
+
+        //
+        // VALVE
+        //
+
+        const mid =
+            pipe.points[
+                Math.floor(
+                    pipe.points.length/2
+                )
+            ];
+
+
+
+        const valve =
+            document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "circle"
+            );
+
+        valve.setAttribute(
+            "cx",
+            mid.x
+        );
+
+        valve.setAttribute(
+            "cy",
+            mid.y
+        );
+
+        valve.setAttribute(
+            "r",
+            "20"
+        );
+
+        valve.setAttribute(
+            "class",
+            "valve"
+        );
+
+        svg.appendChild(valve);
+
+
+
+        //
+        // SLIDER
+        //
+
+        const foreign =
+            document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "foreignObject"
+            );
+
+        foreign.setAttribute(
+            "x",
+            mid.x-65
+        );
+
+        foreign.setAttribute(
+            "y",
+            mid.y-90
+        );
+
+        foreign.setAttribute(
+            "width",
+            "130"
+        );
+
+        foreign.setAttribute(
+            "height",
+            "70"
+        );
+
+
+
+        const div =
+            document.createElement("div");
+
+        div.className =
+            "sliderBox";
+
+        div.innerHTML = `
+
+<div>
+FLOW
+</div>
+
+<input
+type="range"
+min="0"
+max="1"
+step="0.01"
+value="0.5"
+style="width:100px;"
+>
+
+<div>
+<span id="disp_${pipe.id}">
+0.50
+</span>
+</div>
+
+`;
+
+        foreign.appendChild(div);
+
+        svg.appendChild(foreign);
+
+
+
+        const slider =
+            div.querySelector("input");
+
+        slider.addEventListener(
+
+            "input",
+
+            (e)=>{
+
+                params[pipe.id] =
+                    parseFloat(
+                        e.target.value
+                    );
+
+                document.getElementById(
+                    `disp_${pipe.id}`
+                ).innerText =
+                    params[pipe.id]
+                    .toFixed(2);
+            }
+        );
+    }
+
+
+
+    //
+    // TANKS
+    //
+
+    for(let t of tanks){
+
+        const g =
+            document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "g"
+            );
+
+
+
+        //
+        // BODY
+        //
+
+        const body =
+            document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "rect"
+            );
+
+        body.setAttribute("x",t.x);
+        body.setAttribute("y",t.y);
+        body.setAttribute("width",t.w);
+        body.setAttribute("height",t.h);
+        body.setAttribute("rx","20");
+        body.setAttribute(
+            "class",
+            "tankGlass"
+        );
+
+        g.appendChild(body);
+
+
+
+        //
+        // WATER
+        //
+
+        const water =
+            document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "rect"
+            );
+
+        water.setAttribute(
+            "x",
+            t.x+5
+        );
+
+        water.setAttribute(
+            "y",
+            t.y+t.h-10
+        );
+
+        water.setAttribute(
+            "width",
+            t.w-10
+        );
+
+        water.setAttribute(
+            "height",
+            "8"
+        );
+
+        water.setAttribute(
+            "rx",
+            "12"
+        );
+
+        water.setAttribute(
+            "class",
+            "water"
+        );
+
+        g.appendChild(water);
+
+        waterRects[t.id] =
+            water;
+
+
+
+        //
+        // LABEL
+        //
+
+        const label =
+            document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "text"
+            );
+
+        label.setAttribute(
+            "x",
+            t.x+t.w/2
+        );
+
+        label.setAttribute(
+            "y",
+            t.y-20
+        );
+
+        label.setAttribute(
+            "class",
+            "label"
+        );
+
+        label.textContent =
+            t.label;
+
+        g.appendChild(label);
+
+
+
+        //
+        // VALUE
+        //
+
+        const value =
+            document.createElementNS(
+                "http://www.w3.org/2000/svg",
+                "text"
+            );
+
+        value.setAttribute(
+            "id",
+            `tankVal_${t.id}`
+        );
+
+        value.setAttribute(
+            "x",
+            t.x+t.w/2
+        );
+
+        value.setAttribute(
+            "y",
+            t.y+t.h-18
+        );
+
+        value.setAttribute(
+            "class",
+            "value"
+        );
+
+        value.textContent =
+            "0";
+
+        g.appendChild(value);
+
+        svg.appendChild(g);
+    }
+}
+
+
+
+//
+// ======================================================
+// ECONOMY UPDATE
+// ======================================================
+//
+
+function updateEconomy(){
+
+    const delta = {};
+
+    for(let t of tanks){
+
+        delta[t.id] = 0;
+    }
+
+
+
+    //
+    // PIPE FLOWS
+    //
+
+    for(let pipe of pipes){
+
+        const from =
+            pipe.startTank;
+
+        const to =
+            pipe.endTank;
+
+        const valve =
+            params[pipe.id];
+
+        const source =
+            economy[from];
+
+
+
+        const flow =
+            source
+            *
+            0.002
+            *
+            valve;
+
+
+
+        delta[from] -= flow;
+        delta[to] += flow;
+    }
+
+
+
+    //
+    // UPDATE
+    //
+
+    for(let id in economy){
+
+        economy[id] += delta[id];
+
+        economy[id] =
+            Math.max(
+                20,
+                Math.min(
+                    800,
+                    economy[id]
+                )
+            );
+    }
+
+    updateWater();
+    updateStats();
+}
+
+
+
+//
+// ======================================================
+// WATER
+// ======================================================
+//
+
+function updateWater(){
+
+    for(let t of tanks){
+
+        const val =
+            economy[t.id];
+
+        const pct =
+            Math.max(
+                0.04,
+                Math.min(
+                    1,
+                    val/800
+                )
+            );
+
+        const h =
+            pct *
+            (t.h-10);
+
+
+
+        waterRects[t.id]
+        .setAttribute(
+            "height",
+            h
+        );
+
+        waterRects[t.id]
+        .setAttribute(
+            "y",
+            t.y+t.h-h-5
+        );
+
+
+
+        document.getElementById(
+            `tankVal_${t.id}`
+        ).textContent =
+            val.toFixed(1);
+    }
+}
+
+
+
+//
+// ======================================================
+// STATS
+// ======================================================
+//
+
+function updateStats(){
+
+    let gdp = 0;
+    let flow = 0;
+
+    for(let id in economy){
+
+        gdp += economy[id];
+    }
+
+    for(let id in params){
+
+        flow += params[id];
+    }
+
+    document.getElementById(
+        "gdpVal"
+    ).innerText =
+        gdp.toFixed(1);
+
+    document.getElementById(
+        "flowVal"
+    ).innerText =
+        flow.toFixed(2);
+
+    document.getElementById(
+        "netVal"
+    ).innerText =
+        (
+            gdp / Math.max(flow,0.1)
+        ).toFixed(1);
+}
+
+
+
+//
+// ======================================================
+// RESET
+// ======================================================
+//
+
+document.getElementById(
+    "resetBtn"
+).onclick = ()=>{
+
+    initialiseEconomy();
+
+    updateWater();
+};
+
+
+
+//
+// ======================================================
+// START
+// ======================================================
+//
+
+window.onload = loadLayout;
+
+</script>
+
+</body>
+</html>
