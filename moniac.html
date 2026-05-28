@@ -53,13 +53,10 @@ body{
 }
 
 svg{
-    width:16000px;
-    height:12000px;
     display:block;
     background:
         radial-gradient(circle at top,#f7fbff,#dce4ea);
 }
-
 .pipeOuter{
     fill:none;
     stroke:#111;
@@ -1395,7 +1392,53 @@ function animateDot(
 
 function buildScene(){
 
-    svg.innerHTML="";
+    svg.innerHTML = "";
+
+//
+// AUTO SIZE SVG
+//
+
+let minX = Infinity;
+let minY = Infinity;
+let maxX = -Infinity;
+let maxY = -Infinity;
+
+for (const t of tanks) {
+
+    minX = Math.min(minX, t.x);
+    minY = Math.min(minY, t.y);
+
+    maxX = Math.max(maxX, t.x + t.w);
+    maxY = Math.max(maxY, t.y + t.h);
+}
+
+for (const p of pipes) {
+
+    for (const pt of p.points) {
+
+        minX = Math.min(minX, pt.x);
+        minY = Math.min(minY, pt.y);
+
+        maxX = Math.max(maxX, pt.x);
+        maxY = Math.max(maxY, pt.y);
+    }
+}
+
+const padding = 300;
+
+const width =
+    (maxX - minX) + padding * 2;
+
+const height =
+    (maxY - minY) + padding * 2;
+
+svg.setAttribute(
+    "viewBox",
+    `${minX - padding} ${minY - padding} ${width} ${height}`
+);
+
+svg.style.width = width + "px";
+svg.style.height = height + "px";
 
 
 
